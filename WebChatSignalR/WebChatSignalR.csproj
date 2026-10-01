@@ -8,10 +8,8 @@
 
   <ItemGroup>
     <Folder Include="Dtos\" />
-    <Folder Include="Hubs\" />
     <Folder Include="Models\" />
     <Folder Include="Abstractions\" />
-    <Folder Include="Services\" />
   </ItemGroup>
 
 </Project>
