@@ -1,5 +1,6 @@
 using WebChatSignalR.Endpoints;
 using WebChatSignalR.Hubs;
+using WebChatSignalR.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,7 +18,7 @@ builder.Services
     .AddAuthentication("ChatCookie")
     .AddCookie("ChatCookie", options =>
     {
-        options.Cookie.Name = "chat_auth";
+        options.Cookie.Name = ChatUserCookie.CookieName;
         options.Cookie.HttpOnly = true;
         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
         options.Cookie.SameSite = SameSiteMode.Strict;
