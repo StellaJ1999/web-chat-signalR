@@ -1,6 +1,4 @@
-// SignalR-klient för chattgränssnittet.
-// Servern sätter en cookie efter inloggning, och hubben läser användarens identitet därifrån.
-// Text från servern renderas med textContent för att undvika att HTML körs i webbläsaren.
+
 
 const statusEl = document.getElementById("status");
 const messagesEl = document.getElementById("messages");
@@ -9,18 +7,25 @@ const loginNameEl = document.getElementById("login-name");
 const logoutBtn = document.getElementById("logout");
 const messageEl = document.getElementById("message");
 
+
+//Skapa signalR anslutningen.
+//Klienten försöker koppla upp sig mot en server-hub på /hubs/chat
+
 const connection = new signalR.HubConnectionBuilder()
     .withUrl("/hubs/chat")
     .withAutomaticReconnect()
     .configureLogging(signalR.LogLevel.Information)
     .build();
 
-// Klientkod är alltid synlig i webbläsaren, så servern måste validera alla anrop.
+// För debbuging i dev console.
 window.connection = connection;
 
+//När servern anropar ReceiveMessage på klienten, kör funktionen addMessage.
 connection.on("ReceiveMessage", (username, message) => addMessage(username, message));
+//Servern skickar systemmeddelande
 connection.on("ReceiveSystem", (message) => addMessage(null, message, "system"));
 
+//Anslutning
 connection.onreconnecting((err) => setStatus("Återansluter...", false));
 connection.onreconnected(() => setStatus("Ansluten", true));
 connection.onclose((err) => {
@@ -29,7 +34,6 @@ connection.onclose((err) => {
     if (err) addMessage(null, `Anslutningen stängdes: ${err.message}`, "error");
 });
 
-// Säker rendering: allt som kommer från servern behandlas som text.
 function addMessage(username, message, cssClass) {
     const li = document.createElement("li");
     if (cssClass) li.className = cssClass;
@@ -46,11 +50,13 @@ function addMessage(username, message, cssClass) {
     li.scrollIntoView();
 }
 
+//Visar status
 function setStatus(text, connected) {
     statusEl.textContent = text;
     statusEl.className = connected ? "status status--on" : "status status--off";
 }
 
+//Styr när chatten ska vara enabled/disabled
 function setChatEnabled(enabled) {
     document.querySelectorAll("#send-form")
         .forEach(f => f.querySelectorAll("input, button").forEach(el => el.disabled = !enabled));
@@ -59,17 +65,15 @@ function setChatEnabled(enabled) {
     logoutBtn.hidden = !enabled;
 }
 
-// Alla anrop går genom samma hjälpfunktion så att HubException-fel visas för användaren.
+//Hjälpfunktion för att anropa metoder på servern.
 async function invoke(method, ...args) {
     try {
         await connection.invoke(method, ...args);
         return true;
     } catch (err) {
+        //Felet visas i chatten.
         addMessage(null, `Fel: ${err.message}`, "error");
 
-        // En HubException bär bara text. Servern skriver antalet sekunder i meddelandet,
-        // så vi läser ut det och pausar skickaknapparna så länge. Ett större system skulle
-        // skicka en felkod och ett tal i stället för att klienten tolkar text.
         const retry = err.message.match(/Försök igen om (\d+) sekunder/);
         if (retry) pauseSending(Number(retry[1]));
 
@@ -79,6 +83,7 @@ async function invoke(method, ...args) {
 
 let resumeTimer;
 
+//Stänger av skickaknappen under visst antal sekunder
 function pauseSending(seconds) {
     const buttons = document.querySelectorAll("#send-form button");
     buttons.forEach(b => b.disabled = true);
@@ -92,6 +97,8 @@ function pauseSending(seconds) {
         }
     }, seconds * 1000);
 }
+
+//Inloggning
 
 loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -121,6 +128,7 @@ loginForm.addEventListener("submit", async (event) => {
     }
 });
 
+//Utloggning
 logoutBtn.addEventListener("click", async () => {
     await connection.stop();
     await fetch("/logout", { method: "POST" });
