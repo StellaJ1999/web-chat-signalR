@@ -2,6 +2,8 @@
 
 namespace WebChatSignalR.Security;
 
+// Samlar auth scheme, cookie-namn och skapandet av användarens claims.
+// Detta gör att samma namn används i Program.cs, login och logout.
 public static class ChatUserCookie
 {
     public const string AuthScheme = "ChatCookie";
@@ -13,6 +15,7 @@ public static class ChatUserCookie
         {
             new(ClaimTypes.Name, username),
             new(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+            //Inte nödvändigt för G-krav men finns för potentiell utökning av claims.
             new(ClaimTypes.Role, "User")
         };
 

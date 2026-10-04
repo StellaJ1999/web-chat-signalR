@@ -1,5 +1,8 @@
 ﻿namespace WebChatSignalR.Security;
 
+// Validerar användarnamn på serversidan.
+// Frontend-validering är bra för användarupplevelsen,
+// men säkerhetsregler ska alltid kontrolleras på servern.
 public static class UsernameValidator
 {
     public const int MaxLength = 20;

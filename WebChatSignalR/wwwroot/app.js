@@ -8,26 +8,33 @@ const logoutBtn = document.getElementById("logout");
 const messageEl = document.getElementById("message");
 
 
-//Skapa signalR anslutningen.
-//Klienten försöker koppla upp sig mot en server-hub på /hubs/chat
-
+//Skapa signalR anslutningen till serverns chathub.
 const connection = new signalR.HubConnectionBuilder()
     .withUrl("/hubs/chat")
     .withAutomaticReconnect()
     .configureLogging(signalR.LogLevel.Information)
     .build();
 
-// För debbuging i dev console.
-window.connection = connection;
-
-//När servern anropar ReceiveMessage på klienten, kör funktionen addMessage.
+// Tar emot vanliga chattmeddelanden från servern.
+// Servern anropar ReceiveMessage på alla anslutna klienter.
 connection.on("ReceiveMessage", (username, message) => addMessage(username, message));
+
 //Servern skickar systemmeddelande
 connection.on("ReceiveSystem", (message) => addMessage(null, message, "system"));
 
-//Anslutning
-connection.onreconnecting((err) => setStatus("Återansluter...", false));
-connection.onreconnected(() => setStatus("Ansluten", true));
+/// Körs när SignalR tappar anslutningen men försöker återansluta.
+// Chatten stängs av tillfälligt så användaren inte kan skicka
+// meddelanden när anslutningen inte är aktiv.
+connection.onreconnecting((err) => {
+    setStatus("Återansluter...", false);
+    setChatEnabled(false);
+});
+
+connection.onreconnected(() => {
+    setStatus("Ansluten", true);
+    setChatEnabled(true);
+});
+
 connection.onclose((err) => {
     setStatus("Anslutningen stängdes", false);
     setChatEnabled(false);
@@ -65,13 +72,12 @@ function setChatEnabled(enabled) {
     logoutBtn.hidden = !enabled;
 }
 
-//Hjälpfunktion för att anropa metoder på servern.
+//Hjälpfunktion för att anropa metoder på serverns chathub.
 async function invoke(method, ...args) {
     try {
         await connection.invoke(method, ...args);
         return true;
     } catch (err) {
-        //Felet visas i chatten.
         addMessage(null, `Fel: ${err.message}`, "error");
 
         const retry = err.message.match(/Försök igen om (\d+) sekunder/);
@@ -84,6 +90,8 @@ async function invoke(method, ...args) {
 let resumeTimer;
 
 //Stänger av skickaknappen under visst antal sekunder
+// Detta används tillsammans med serverns rate limiting för att
+// minska spam och ge användaren tydlig återkoppling.
 function pauseSending(seconds) {
     const buttons = document.querySelectorAll("#send-form button");
     buttons.forEach(b => b.disabled = true);
@@ -102,41 +110,75 @@ function pauseSending(seconds) {
 
 loginForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const response = await fetch("/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: loginNameEl.value }),
-    });
 
-    if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        addMessage(null, `Inloggning misslyckades: ${body.error ?? response.status}`, "error");
+    const loginButton = loginForm.querySelector("button[type=submit]");
+    loginButton.disabled = true;
+
+    if (connection.state !== signalR.HubConnectionState.Disconnected) {
+        addMessage(null, "Du är redan ansluten eller anslutningen startar.", "system");
+        loginButton.disabled = false;
         return;
     }
 
-    const user = await response.json();
-    setStatus(`Ansluter som ${user.name}...`, false);
-
     try {
+        const response = await fetch("/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: loginNameEl.value }),
+        });
+
+        if (!response.ok) {
+            const body = await response.json().catch(() => ({}));
+            addMessage(null, `Inloggning misslyckades: ${body.error ?? response.status}`, "error");
+            loginButton.disabled = false;
+            return;
+        }
+
+        const user = await response.json();
+        setStatus(`Ansluter som ${user.name}...`, false);
+
         await connection.start();
+
         setStatus(`Ansluten som ${user.name}`, true);
         setChatEnabled(true);
         messageEl.focus();
     } catch (err) {
         setStatus("Anslutning misslyckades", false);
         addMessage(null, `Anslutning misslyckades: ${err.message}`, "error");
+        loginButton.disabled = false;
     }
 });
 
 //Utloggning
 logoutBtn.addEventListener("click", async () => {
-    await connection.stop();
-    await fetch("/logout", { method: "POST" });
-    setStatus("Ej inloggad", false);
-    setChatEnabled(false);
+    try {
+        if (connection.state !== signalR.HubConnectionState.Disconnected) {
+            await connection.stop();
+        }
+
+        await fetch("/logout", { method: "POST" });
+    } finally {
+        setStatus("Ej inloggad", false);
+        setChatEnabled(false);
+    }
 });
 
+// Hanterar skickande av chattmeddelanden.
 document.getElementById("send-form").addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (await invoke("SendMessage", messageEl.value)) messageEl.value = "";
+
+    if (connection.state !== signalR.HubConnectionState.Connected) {
+        addMessage(null, "Du är inte ansluten till chatten.", "error");
+        return;
+    }
+
+    const message = messageEl.value.trim();
+
+    if (!message) {
+        return;
+    }
+
+    if (await invoke("SendMessage", message)) {
+        messageEl.value = "";
+    }
 });

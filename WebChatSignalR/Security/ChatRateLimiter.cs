@@ -2,6 +2,8 @@
 
 namespace WebChatSignalR.Security;
 
+// Enkel rate limiter för chatten.
+// Den minskar risken att en användare spammar många meddelanden snabbt.
 public sealed class ChatRateLimiter
 {
     private readonly ConcurrentDictionary<string, DateTimeOffset> _lastMessageAt = new();

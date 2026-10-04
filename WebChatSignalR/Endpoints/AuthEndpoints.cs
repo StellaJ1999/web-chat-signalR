@@ -9,6 +9,8 @@ public static class AuthEndpoints
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapPost("/login", (Delegate)Login);
+
+        //Kräver att användaren är inloggad
         app.MapPost("/logout", (Delegate)Logout).RequireAuthorization();
         app.MapGet("/me", (Delegate)GetCurrentUser).RequireAuthorization();
 
@@ -27,6 +29,8 @@ public static class AuthEndpoints
         var username = UsernameValidator.Clean(request.Name!);
         var principal = ChatUserCookie.CreatePrincipal(username);
 
+        // SignInAsync skapar den signerade auth-cookien.
+        // Efter detta räknas användaren som autentiserad av ASP.NET Core.
         await httpContext.SignInAsync(
             ChatUserCookie.AuthScheme,
             principal,
@@ -42,6 +46,7 @@ public static class AuthEndpoints
 
     private static async Task<IResult> Logout(HttpContext httpContext)
     {
+        // Tar bort auth-cookien så användaren inte längre är inloggad.
         await httpContext.SignOutAsync(ChatUserCookie.AuthScheme);
 
         return Results.Ok(new { message = "Du är utloggad." });
