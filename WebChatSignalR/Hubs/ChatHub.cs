@@ -51,7 +51,7 @@ public class ChatHub : Hub
 
     // Klienten skickar inte användarnamnet själv.
     // Servern hämtar användarnamnet från den autentiserade användarens claims.
-    public async Task SendMessage(string message)
+    public async Task<bool> SendMessage(string message)
     {
         var username = GetUsername();
 
@@ -59,14 +59,17 @@ public class ChatHub : Hub
 
         if (validationError is not null)
         {
-            throw new HubException(validationError);
+            await Clients.Caller.SendAsync("ReceiveSystem", validationError);
+            return false;
         }
 
         if (!_rateLimiter.IsAllowed(Context.ConnectionId))
         {
-            throw new HubException(
+            await Clients.Caller.SendAsync(
+                "ReceiveSystem",
                 $"Du skickar för snabbt. Försök igen om {_rateLimiter.CooldownSeconds} sekunder."
             );
+            return false;
         }
 
         var cleanedMessage = MessageValidator.Clean(message);
@@ -74,6 +77,7 @@ public class ChatHub : Hub
         _rateLimiter.MarkMessageSent(Context.ConnectionId);
 
         await Clients.All.SendAsync("ReceiveMessage", username, cleanedMessage);
+        return true;
     }
 
     private string GetUsername()

@@ -78,7 +78,7 @@ async function invoke(method, ...args) {
         await connection.invoke(method, ...args);
         return true;
     } catch (err) {
-        addMessage(null, `Fel: ${err.message}`, "error");
+        addMessage(null, message, "error");
 
         const retry = err.message.match(/Försök igen om (\d+) sekunder/);
         if (retry) pauseSending(Number(retry[1]));
