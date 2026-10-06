@@ -75,14 +75,10 @@ function setChatEnabled(enabled) {
 //Hjälpfunktion för att anropa metoder på serverns chathub.
 async function invoke(method, ...args) {
     try {
-        await connection.invoke(method, ...args);
-        return true;
+        const result = await connection.invoke(method, ...args);
+        return result !== false;
     } catch (err) {
-        addMessage(null, message, "error");
-
-        const retry = err.message.match(/Försök igen om (\d+) sekunder/);
-        if (retry) pauseSending(Number(retry[1]));
-
+        addMessage(null, "Något gick fel. Försök igen.", "error");
         return false;
     }
 }
