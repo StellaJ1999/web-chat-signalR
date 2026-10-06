@@ -12,15 +12,15 @@ public class MessageValidator
 
         if (string.IsNullOrWhiteSpace(normalized))
         {
-            throw new HubException("Meddelandet får inte vara tomt.");
+            return "Meddelandet får inte vara tomt.";
         }
 
         if (normalized.Length > MaxLength)
         {
-            throw new HubException($"Meddelandet får max vara {MaxLength} tecken.");
+            return $"Meddelandet får max vara {MaxLength} tecken.";
         }
 
-        return normalized;
+        return null;
     }
     public static string Clean(string message)
     {
