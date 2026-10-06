@@ -9,8 +9,6 @@ namespace WebChatSignalR.Hubs;
 [Authorize]
 public class ChatHub : Hub
 {
-    private const int MaxMessageLength = 500;
-
     private readonly ChatRateLimiter _rateLimiter;
 
     public ChatHub(ChatRateLimiter rateLimiter)
@@ -51,23 +49,17 @@ public class ChatHub : Hub
         await base.OnDisconnectedAsync(exception);
     }
 
-    // Frontend ska anropar connection.invoke("SendMessage", message)
-    //
     // Klienten skickar inte användarnamnet själv.
     // Servern hämtar användarnamnet från den autentiserade användarens claims.
     public async Task SendMessage(string message)
     {
         var username = GetUsername();
-        var cleanedMessage = message?.Trim();
 
-        if (string.IsNullOrWhiteSpace(cleanedMessage))
-        {
-            throw new HubException("Meddelandet får inte vara tomt.");
-        }
+        var validationError = MessageValidator.Validate(message);
 
-        if (cleanedMessage.Length > MaxMessageLength)
+        if (validationError is not null)
         {
-            throw new HubException($"Meddelandet får max vara {MaxMessageLength} tecken.");
+            throw new HubException(validationError);
         }
 
         if (!_rateLimiter.IsAllowed(Context.ConnectionId))
@@ -77,10 +69,10 @@ public class ChatHub : Hub
             );
         }
 
+        var cleanedMessage = MessageValidator.Clean(message);
+
         _rateLimiter.MarkMessageSent(Context.ConnectionId);
 
-        // Clients.All skickar meddelandet till alla anslutna klienter.
-        // Alla klienter som lyssnar på ReceiveMessage visar meddelandet i realtid.
         await Clients.All.SendAsync("ReceiveMessage", username, cleanedMessage);
     }
 
